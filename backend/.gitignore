@@ -113,6 +113,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# import-linter
+.import_linter_cache/
+
 # Environments
 .env
 .venv

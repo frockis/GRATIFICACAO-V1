@@ -1,0 +1,38 @@
+# Fronteiras do monólito modular (rode "lint-imports" dentro de backend/).
+# Cada componente é um app em apps/ e só expõe o módulo interface.py.
+
+[importlinter]
+root_packages =
+    apps
+    sggd
+
+[importlinter:contract:componentes-independentes]
+name = Componentes só se comunicam pela interface pública (apps.<componente>.interface)
+type = independence
+modules = apps.*
+ignore_imports =
+    apps.** -> apps.*.interface
+unmatched_ignore_imports_alerting = none
+
+[importlinter:contract:acesso-sem-regras-de-negocio]
+name = Controle de Acesso não depende dos componentes de negócio
+type = forbidden
+source_modules =
+    apps.acesso
+forbidden_modules =
+    apps.apuracao
+    apps.auditoria
+    apps.cadastro
+    apps.coleta
+    apps.normativa
+    apps.pagamento
+    apps.publicacao
+    apps.recurso
+
+[importlinter:contract:apps-sem-projeto]
+name = Componentes não importam o projeto sggd (usar django.conf.settings)
+type = forbidden
+source_modules =
+    apps
+forbidden_modules =
+    sggd

@@ -10,22 +10,50 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
+
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-# Quick-start development settings - unsuitable for production
+def _carregar_env(caminho):
+    """Carrega o arquivo .env (CHAVE=valor) sem sobrescrever variáveis já definidas."""
+    if not caminho.exists():
+        return
+    for linha in caminho.read_text(encoding="utf-8").splitlines():
+        linha = linha.strip()
+        if linha and not linha.startswith("#") and "=" in linha:
+            chave, valor = linha.split("=", 1)
+            os.environ.setdefault(chave.strip(), valor.strip())
+
+
+def _obrigatoria(nome):
+    try:
+        return os.environ[nome]
+    except KeyError:
+        raise ImproperlyConfigured(
+            f"Defina a variável de ambiente {nome} (veja backend/.env.example)."
+        ) from None
+
+
+_carregar_env(BASE_DIR / ".env")
+
+# Configurações sensíveis vêm de variáveis de ambiente (backend/.env.example).
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-ztc!v)2!e^=(22@m#ci&rj^zw+!0gs=ih+$_w#y#1ql!@)4(nj"
+SECRET_KEY = _obrigatoria("DJANGO_SECRET_KEY")
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Desligado por padrão: só ative (DJANGO_DEBUG=1) em desenvolvimento.
+DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    host.strip()
+    for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+    if host.strip()
+]
 
 
 # Application definition
@@ -37,6 +65,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "apps.acesso",
     "apps.auditoria",
     "apps.coleta",
     "apps.normativa",
@@ -84,9 +113,33 @@ WSGI_APPLICATION = "sggd.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": _obrigatoria("POSTGRES_DB"),
+        "USER": _obrigatoria("POSTGRES_USER"),
+        "PASSWORD": _obrigatoria("POSTGRES_PASSWORD"),
+        "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
+}
+
+
+# Usuário e autorização (componente Controle de Acesso, apps/acesso)
+
+AUTH_USER_MODEL = "acesso.Usuario"
+
+REST_FRAMEWORK = {
+    # Provisório: o mecanismo de autenticação da API depende do protocolo da
+    # autenticação institucional (OIDC ou SAML), ainda não confirmado. Fica só a
+    # sessão do Django (a mesma do admin); BasicAuthentication foi retirada para
+    # não aceitar senha em cada requisição.
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    # Negar por padrão: toda view da API exige usuário autenticado, e as
+    # operações protegidas declaram a permissão exigida (apps.acesso.interface).
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
 }
 
 
@@ -112,9 +165,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "pt-br"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "America/Recife"
 
 USE_I18N = True
 
