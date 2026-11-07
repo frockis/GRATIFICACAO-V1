@@ -1,13 +1,16 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser, Group, Permission
 from django.core.exceptions import ImproperlyConfigured
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, force_authenticate
 from rest_framework.views import APIView
 
-from .interface import ExigePermissao, usuario_tem_permissao
+from .autenticacao import PerfilSimuladoAuthentication
+from .interface import ExigePermissao, identificacao, usuario_tem_permissao
 from .models import Usuario
 
 # Permissão nativa do próprio app, usada como exemplo de operação protegida.
@@ -251,3 +254,55 @@ class OperacaoPorPapelNaApiTests(TestCase):
         resposta = self._post(_usuario_com_papeis("bia", "CAM/SECOGE"))
 
         self.assertEqual(resposta.status_code, status.HTTP_200_OK)
+
+
+def _requisicao_demo(**cabecalhos):
+    return Request(APIRequestFactory().get("/", **cabecalhos))
+
+
+@override_settings(DEBUG=True, SGGD_PERFIL_SIMULADO=True)
+class PerfilSimuladoTests(TestCase):
+    """Modo demonstração do protótipo: X-Perfil vira usuário de demonstração com papel."""
+
+    def autenticar(self, **cabecalhos):
+        return PerfilSimuladoAuthentication().authenticate(_requisicao_demo(**cabecalhos))
+
+    def test_perfil_vira_usuario_demo_com_o_papel_equivalente(self):
+        esperado = {"configurador": "Configurador", "seab": "CAM/SECOGE", "gestor": "Avaliado", "coordenador": "Avaliado"}
+        for perfil, papel in esperado.items():
+            usuario, _ = self.autenticar(HTTP_X_PERFIL=perfil)
+            self.assertEqual(usuario.username, f"demo-{perfil}")
+            self.assertEqual(list(usuario.groups.values_list("name", flat=True)), [papel])
+            self.assertFalse(usuario.has_usable_password())
+
+    def test_usuario_demo_e_reaproveitado(self):
+        primeiro, _ = self.autenticar(HTTP_X_PERFIL="gestor")
+        segundo, _ = self.autenticar(HTTP_X_PERFIL="gestor")
+        self.assertEqual(primeiro.pk, segundo.pk)
+
+    def test_permissoes_vem_do_papel(self):
+        configurador, _ = self.autenticar(HTTP_X_PERFIL="configurador")
+        gestor, _ = self.autenticar(HTTP_X_PERFIL="gestor")
+        self.assertTrue(usuario_tem_permissao(configurador, "acesso.cadastrar_unidade"))
+        self.assertFalse(usuario_tem_permissao(gestor, "acesso.cadastrar_unidade"))
+
+    def test_identificacao_usa_o_nome_enviado_pelo_front(self):
+        requisicao = _requisicao_demo(HTTP_X_PERFIL="seab", HTTP_X_USUARIO="Patr%C3%ADcia")
+        usuario, auth = PerfilSimuladoAuthentication().authenticate(requisicao)
+        requisicao.user, requisicao.auth = usuario, auth
+        self.assertEqual(identificacao(requisicao), ("Patrícia", "seab"))
+
+    def test_perfil_desconhecido_e_recusado(self):
+        with self.assertRaises(AuthenticationFailed):
+            self.autenticar(HTTP_X_PERFIL="admin")
+
+    def test_sem_cabecalho_nao_autentica(self):
+        self.assertIsNone(self.autenticar())
+
+    @override_settings(DEBUG=False)
+    def test_sem_debug_nao_autentica(self):
+        self.assertIsNone(self.autenticar(HTTP_X_PERFIL="configurador"))
+
+    @override_settings(SGGD_PERFIL_SIMULADO=False)
+    def test_desligado_nao_autentica(self):
+        self.assertIsNone(self.autenticar(HTTP_X_PERFIL="configurador"))

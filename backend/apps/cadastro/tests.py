@@ -2,18 +2,18 @@ import json
 from pathlib import Path
 
 from django.core.exceptions import ValidationError
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 from rest_framework.test import APITestCase
 
-from auditoria.models import RegistroAuditoria
+from apps.auditoria.interface import registros
 
 from . import services
 from .models import Avaliado, Distrito, Unidade
 
 DADOS = json.loads((Path(__file__).parent / "dados_prototipo.json").read_text(encoding="utf-8"))
-SEAB = {"HTTP_X_PERFIL": "seab", "HTTP_X_USUARIO": "Patr%C3%ADcia%20Gomes%20Freitas"}
-GESTOR = {"HTTP_X_PERFIL": "gestor", "HTTP_X_USUARIO": "Ana"}
 
 
 class ModeloTest(TestCase):
@@ -79,16 +79,16 @@ class ModeloTest(TestCase):
         a.unidade = u2
         a.distrito = None
         services.salvar(a, self.autor)
-        reg = RegistroAuditoria.objects.filter(operacao="Vínculo alterado").get()
+        reg = registros().filter(operacao="Vínculo alterado").get()
         self.assertIn("unidade: USF A", reg.valor_anterior)
         self.assertIn("unidade: USF B", reg.novo_valor)
         self.assertEqual(reg.componente, "cadastro")
         self.assertEqual(reg.perfil, "SEAB/CAM — Monitoramento")
 
     def test_salvar_sem_mudanca_nao_gera_registro(self):
-        antes = RegistroAuditoria.objects.count()
+        antes = registros().count()
         services.salvar(self.u1, self.autor)  # u1 foi criado sem service: conta como alteração vazia
-        self.assertEqual(RegistroAuditoria.objects.count(), antes)
+        self.assertEqual(registros().count(), antes)
 
 
 class ImportacaoTest(TestCase):
@@ -98,10 +98,10 @@ class ImportacaoTest(TestCase):
         self.assertEqual(Unidade.objects.count(), 4)
         self.assertEqual(Avaliado.objects.count(), 9)
         self.assertEqual(Avaliado.objects.get(id="us1").distrito_id, "d1")
-        registros = RegistroAuditoria.objects.count()
+        total = registros().count()
         call_command("importar_cadastro", verbosity=0)
         self.assertEqual(Avaliado.objects.count(), 9)
-        self.assertEqual(RegistroAuditoria.objects.count(), registros)  # nada mudou, nada auditado
+        self.assertEqual(registros().count(), total)  # nada mudou, nada auditado
 
     def test_tudo_ou_nada(self):
         ruim = {
@@ -116,15 +116,27 @@ class ImportacaoTest(TestCase):
             services.importar(ruim, services.Autor())
         self.assertEqual([(e["secao"], e["indice"]) for e in ctx.exception.erros], [("unidades", 1), ("unidades", 2)])
         self.assertFalse(Distrito.objects.exists())
-        self.assertFalse(RegistroAuditoria.objects.exists())
+        self.assertFalse(registros().exists())
 
 
-@override_settings(SGGD_PERFIL_SIMULADO=True)
+def _usuario(username, papel, first_name="", last_name=""):
+    """Usuário do Controle de Acesso com um papel (Group criado pelas migrações do acesso)."""
+    usuario = get_user_model().objects.create_user(
+        username, password="Senha-de-teste-123", first_name=first_name, last_name=last_name
+    )
+    usuario.groups.add(Group.objects.get(name=papel))
+    return usuario
+
+
 class ApiTest(APITestCase):
     def setUp(self):
         services.importar(DADOS, services.Autor())
+        self.configurador = _usuario("patricia", "Configurador", "Patrícia", "Gomes Freitas")
+        self.cam = _usuario("cam", "CAM/SECOGE")
+        self.avaliado = _usuario("ana", "Avaliado")
 
     def test_formato_igual_ao_front(self):
+        self.client.force_authenticate(self.avaliado)
         r = self.client.get("/api/usuarios/", {"perfilId": "gestor"})
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.data), 4)
@@ -137,54 +149,71 @@ class ApiTest(APITestCase):
         self.assertEqual(u["distritoId"], "d1")
         self.assertEqual(len(self.client.get("/api/distritos/").data), 3)
 
-    def test_gestor_nao_cadastra(self):
-        r = self.client.post("/api/unidades/", {"nome": "USF Nova", "distritoId": "d1", "tipo": "USF"}, format="json", **GESTOR)
-        self.assertEqual(r.status_code, 403)
+    def test_sem_login_nada_e_acessivel(self):
+        for rota in ("/api/usuarios/", "/api/unidades/", "/api/distritos/", "/api/vinculos/", "/api/auditoria/"):
+            self.assertEqual(self.client.get(rota).status_code, 403, rota)
         r = self.client.post("/api/unidades/", {"nome": "USF Nova", "distritoId": "d1", "tipo": "USF"}, format="json")
         self.assertEqual(r.status_code, 403)
 
-    def test_seab_cadastra_altera_e_inativa(self):
-        r = self.client.post("/api/unidades/", {"nome": "USF Nova", "distritoId": "d2", "tipo": "USF"}, format="json", **SEAB)
+    def test_quem_nao_tem_permissao_nao_cadastra(self):
+        for usuario in (self.avaliado, self.cam):
+            self.client.force_authenticate(usuario)
+            r = self.client.post(
+                "/api/unidades/", {"nome": "USF Nova", "distritoId": "d1", "tipo": "USF"}, format="json"
+            )
+            self.assertEqual(r.status_code, 403, usuario.username)
+            r = self.client.patch("/api/usuarios/us2/", {"unidadeId": "u3"}, format="json")
+            self.assertEqual(r.status_code, 403, usuario.username)
+            self.assertEqual(self.client.post("/api/unidades/u1/inativar/").status_code, 403)
+        self.assertFalse(Unidade.objects.filter(nome="USF Nova").exists())
+
+    def test_configurador_cadastra_altera_e_inativa(self):
+        self.client.force_authenticate(self.configurador)
+        r = self.client.post("/api/unidades/", {"nome": "USF Nova", "distritoId": "d2", "tipo": "USF"}, format="json")
         self.assertEqual(r.status_code, 201, r.data)
         self.assertEqual(r.data["id"], "u5")
 
-        r = self.client.patch("/api/unidades/u5/", {"nome": "USF Nova II"}, format="json", **SEAB)
+        r = self.client.patch("/api/unidades/u5/", {"nome": "USF Nova II"}, format="json")
         self.assertEqual(r.status_code, 200, r.data)
 
-        r = self.client.post("/api/unidades/u5/inativar/", **SEAB)
+        r = self.client.post("/api/unidades/u5/inativar/")
         self.assertEqual(r.data["status"], "Inativo")
 
-        self.assertEqual(self.client.delete("/api/unidades/u5/", **SEAB).status_code, 405)
+        self.assertEqual(self.client.delete("/api/unidades/u5/").status_code, 405)
 
-        reg = RegistroAuditoria.objects.filter(operacao="Unidade cadastrada").latest("id")
+        reg = registros().filter(operacao="Unidade cadastrada").latest("id")
         self.assertEqual(reg.usuario, "Patrícia Gomes Freitas")
+        self.assertEqual(reg.perfil, "Configurador")
 
     def test_erros_com_nome_do_campo_do_front(self):
+        self.client.force_authenticate(self.configurador)
         r = self.client.post(
-            "/api/usuarios/", {"nome": "Sem unidade", "email": "su@x.org", "perfilId": "gestor"}, format="json", **SEAB
+            "/api/usuarios/", {"nome": "Sem unidade", "email": "su@x.org", "perfilId": "gestor"}, format="json"
         )
         self.assertEqual(r.status_code, 400)
         self.assertIn("unidadeId", r.data)
 
     def test_vinculos_para_apuracao(self):
+        self.client.force_authenticate(self.avaliado)
         r = self.client.get("/api/vinculos/", {"distritoId": "d1"})
         # Ana (u1), Carlos (u2) e Marcela (coordenadora d1). SEAB/Configurador e inativos ficam fora.
         self.assertEqual([v["avaliadoId"] for v in r.data], ["us1", "us2", "us5"])
         r = self.client.get("/api/unidades/u3/vinculos/")
         self.assertEqual([v["nome"] for v in r.data], ["Fernanda Alves Rocha"])
 
-    def test_importar_por_http(self):
-        r = self.client.post(
-            "/api/cadastro/importar/",
-            {"unidades": [{"nome": "CAPS Centro", "distritoId": "d1", "tipo": "CAPS"}]},
-            format="json",
-            **SEAB,
-        )
+    def test_importar_por_http_exige_as_duas_permissoes(self):
+        dados = {"unidades": [{"nome": "CAPS Centro", "distritoId": "d1", "tipo": "CAPS"}]}
+        self.client.force_authenticate(self.avaliado)
+        self.assertEqual(self.client.post("/api/cadastro/importar/", dados, format="json").status_code, 403)
+
+        self.client.force_authenticate(self.configurador)
+        r = self.client.post("/api/cadastro/importar/", dados, format="json")
         self.assertEqual(r.status_code, 201, r.data)
         self.assertEqual(r.data["unidades"], 1)
 
     def test_auditoria_no_formato_do_front(self):
-        self.client.patch("/api/usuarios/us2/", {"unidadeId": "u3"}, format="json", **SEAB)
+        self.client.force_authenticate(self.configurador)
+        self.client.patch("/api/usuarios/us2/", {"unidadeId": "u3"}, format="json")
         r = self.client.get("/api/auditoria/", {"componente": "cadastro"})
         primeiro = r.data[0]
         self.assertEqual(primeiro["operacao"], "Vínculo alterado")
@@ -192,3 +221,34 @@ class ApiTest(APITestCase):
             set(primeiro.keys()),
             {"id", "usuario", "data", "horario", "operacao", "registroAfetado", "valorAnterior", "novoValor", "perfil", "localizacao", "componente"},
         )
+
+
+# Seletor de perfil do protótipo (apps/acesso/autenticacao.py): só vale com DEBUG.
+CONFIGURADOR_DEMO = {"HTTP_X_PERFIL": "configurador", "HTTP_X_USUARIO": "Patr%C3%ADcia%20Gomes%20Freitas"}
+GESTOR_DEMO = {"HTTP_X_PERFIL": "gestor", "HTTP_X_USUARIO": "Ana"}
+
+
+@override_settings(DEBUG=True, SGGD_PERFIL_SIMULADO=True)
+class PerfilSimuladoTest(APITestCase):
+    def setUp(self):
+        services.importar(DADOS, services.Autor())
+
+    def test_configurador_do_seletor_cadastra_e_aparece_na_auditoria(self):
+        r = self.client.post(
+            "/api/unidades/", {"nome": "USF Nova", "distritoId": "d2", "tipo": "USF"}, format="json", **CONFIGURADOR_DEMO
+        )
+        self.assertEqual(r.status_code, 201, r.data)
+        reg = registros().filter(operacao="Unidade cadastrada").latest("id")
+        self.assertEqual(reg.usuario, "Patrícia Gomes Freitas")
+        self.assertEqual(reg.perfil, "Configurador SAB")
+
+    def test_gestor_do_seletor_le_mas_nao_cadastra(self):
+        self.assertEqual(self.client.get("/api/unidades/", **GESTOR_DEMO).status_code, 200)
+        r = self.client.post(
+            "/api/unidades/", {"nome": "USF Nova", "distritoId": "d1", "tipo": "USF"}, format="json", **GESTOR_DEMO
+        )
+        self.assertEqual(r.status_code, 403)
+
+    @override_settings(DEBUG=False)
+    def test_sem_debug_o_cabecalho_e_ignorado(self):
+        self.assertEqual(self.client.get("/api/unidades/", **CONFIGURADOR_DEMO).status_code, 403)

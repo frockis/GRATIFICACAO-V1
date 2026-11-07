@@ -96,6 +96,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const usuarioAtual = nomeUsuarioPorPerfil(perfilAtual, cadastro.usuarios);
 
+  // Enquanto não há login real, o backend sabe quem está operando por estes cabeçalhos
+  // (modo demonstração do Controle de Acesso). Precisa vir antes da carga abaixo: a API
+  // exige usuário autenticado também para leitura, e os efeitos rodam na ordem declarada.
+  useEffect(() => {
+    definirIdentidade({ perfil: perfilAtual, usuario: usuarioAtual });
+  }, [perfilAtual, usuarioAtual]);
+
   // Carrega o cadastro do backend; se ele não estiver rodando, segue com o mockData.
   useEffect(() => {
     let ativo = true;
@@ -113,11 +120,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ativo = false;
     };
   }, []);
-
-  // Enquanto não há login real, o backend sabe quem está operando por estes cabeçalhos.
-  useEffect(() => {
-    definirIdentidade({ perfil: perfilAtual, usuario: usuarioAtual });
-  }, [perfilAtual, usuarioAtual]);
 
   const nomePerfilAtual = PERFIS.find((p) => p.id === perfilAtual)?.nome ?? '';
 

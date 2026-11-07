@@ -10,6 +10,6 @@ router.register("usuarios", views.UsuarioViewSet, basename="usuario")
 
 urlpatterns = [
     path("vinculos/", views.vinculos, name="vinculos"),
-    path("cadastro/importar/", views.importar, name="cadastro-importar"),
+    path("cadastro/importar/", views.ImportarView.as_view(), name="cadastro-importar"),
     *router.urls,
 ]

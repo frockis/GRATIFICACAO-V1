@@ -3,7 +3,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
-from cadastro.services import Autor, ImportacaoInvalida, importar
+from apps.cadastro.services import Autor, ImportacaoInvalida, importar
 
 ARQUIVO_PROTOTIPO = Path(__file__).resolve().parents[2] / "dados_prototipo.json"
 

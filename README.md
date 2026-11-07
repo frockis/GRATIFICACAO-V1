@@ -44,12 +44,12 @@ atualizam o estado do protótipo em tempo real e ficam registradas na tela de Au
 - [Vite](https://vitejs.dev/) + [React](https://react.dev/) + TypeScript
 - [React Router](https://reactrouter.com/) (`HashRouter`) para a navegação entre telas
 - CSS puro, organizado por componente/página (sem framework de UI)
-- Estado da aplicação em memória via React Context (`src/context/AppContext.tsx`), sem persistência
+- Estado da aplicação em memória via React Context (`frontend/src/context/AppContext.tsx`); o cadastro vem do backend quando ele está rodando
 
 ## Estrutura do projeto
 
 ```
-src/
+frontend/src/
   types/         Tipos TypeScript compartilhados (indicadores, usuários, competências, etc.)
   data/          Dados mockados centralizados (distritos, unidades, usuários, catálogo, registros)
   context/       AppContext — perfil atual, competência atual e ações sobre os indicadores
@@ -65,7 +65,7 @@ src/
 Pré-requisitos: [Node.js](https://nodejs.org/) 18 ou superior (o protótipo foi criado e testado com
 Node 22) e o npm correspondente.
 
-1. Abra a pasta do projeto no terminal (ou use o terminal integrado do VS Code).
+1. Abra a pasta `frontend/` do projeto no terminal (`cd frontend`).
 2. Instale as dependências (só é necessário na primeira vez, ou quando o `package.json` mudar):
 
    ```bash
@@ -88,19 +88,20 @@ erros:
 npm run build
 ```
 
-Os arquivos gerados ficam em `dist/`. Para servi-los localmente e conferir o resultado:
+Os arquivos gerados ficam em `frontend/dist/`. Para servi-los localmente e conferir o resultado:
 
 ```bash
 npm run preview
 ```
 
-## Backend (em construção)
+## Backend
 
 A pasta [`backend/`](backend/README.md) tem o backend em Django, um app por componente do plano de
-desenvolvimento. Já existe o componente **Cadastro de Avaliados e Unidades**: com o backend rodando
+desenvolvimento. Já existem o **Controle de Acesso** e o **Cadastro de Avaliados e Unidades**: com o backend rodando
 (`python manage.py runserver` em `backend/`), distritos, unidades e usuários passam a vir da API e a tela
 **Usuários e Permissões** cadastra, edita e inativa pessoas e unidades de verdade, com registro na
-**Auditoria**. Sem o backend, o front continua usando o `mockData.ts`. Instruções em `backend/README.md`.
+**Auditoria**. As permissões são do Controle de Acesso: no modo demonstração, só o perfil **Configurador SAB**
+cadastra. Sem o backend, o front continua usando o `mockData.ts`. Instruções em `backend/README.md`.
 
 ## Como navegar no protótipo
 

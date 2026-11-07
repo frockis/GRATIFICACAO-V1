@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.forms.models import model_to_dict
 
-from auditoria.services import registrar
+from apps.auditoria.interface import registrar
 
 from .models import Avaliado, Distrito, PerfilId, Status, Unidade
 
@@ -108,7 +108,10 @@ def _auditar(obj, autor: Autor, antes: dict | None):
 
 
 def _perfil_label(perfil: str) -> str:
-    return PerfilId(perfil).label if perfil in PerfilId.values else ""
+    """Perfil do protótipo (ex.: "seab") vira o nome; papéis do Controle de Acesso ficam como vieram."""
+    if perfil in PerfilId.values:
+        return PerfilId(perfil).label
+    return perfil[:60]  # RegistroAuditoria.perfil tem max_length=60
 
 
 # --------------------------------------------------------------------------- #

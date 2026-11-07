@@ -26,6 +26,8 @@ verificar o escopo, que ainda não está definido.
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.permissions import BasePermission
 
+from .autenticacao import IdentidadeSimulada
+
 
 def usuario_tem_permissao(usuario, permissao):
     """Diz se o usuário pode executar a operação "app_label.codename".
@@ -51,3 +53,21 @@ class ExigePermissao(BasePermission):
                 f"{type(view).__name__} usa ExigePermissao, mas não define permissoes_exigidas."
             )
         return all(usuario_tem_permissao(request.user, p) for p in permissoes)
+
+
+def identificacao(request):
+    """Nome e perfil de quem fez a requisição, para registros (ex.: auditoria).
+
+    No modo demonstração (apps.acesso.autenticacao) vêm do seletor do front.
+    Fora dele, vêm do usuário logado (nome completo ou username) e dos seus papéis.
+    """
+    autenticacao = getattr(request, "auth", None)
+    if isinstance(autenticacao, IdentidadeSimulada):
+        return autenticacao.nome, autenticacao.perfil
+
+    usuario = getattr(request, "user", None)
+    if not (usuario and usuario.is_authenticated):
+        return "Anônimo", ""
+    nome = usuario.get_full_name() or usuario.get_username()
+    papeis = ", ".join(usuario.groups.order_by("name").values_list("name", flat=True))
+    return nome, papeis

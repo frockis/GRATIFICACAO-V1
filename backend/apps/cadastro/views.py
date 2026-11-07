@@ -1,9 +1,11 @@
 from django.core.exceptions import ValidationError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from sggd.permissoes import perfil_da_requisicao, usuario_da_requisicao
+from apps.acesso.interface import ExigePermissao, identificacao
 
 from . import services
 from .models import Avaliado, Distrito, Unidade
@@ -14,7 +16,8 @@ CAMPO_FRONT = {"distrito": "distritoId", "unidade": "unidadeId", "perfil": "perf
 
 
 def _autor(request) -> services.Autor:
-    return services.Autor(nome=usuario_da_requisicao(request), perfil=perfil_da_requisicao(request) or "")
+    nome, perfil = identificacao(request)
+    return services.Autor(nome=nome, perfil=perfil)
 
 
 def _erro(e: ValidationError) -> Response:
@@ -26,11 +29,23 @@ def _erro(e: ValidationError) -> Response:
 
 
 class CadastroViewSet(viewsets.ViewSet):
-    """Base: listar, detalhar, criar (POST), alterar (PATCH) e inativar. Não existe DELETE."""
+    """Base: listar, detalhar, criar (POST), alterar (PATCH) e inativar. Não existe DELETE.
+
+    Leitura exige só usuário autenticado (padrão do projeto). As demais ações exigem
+    as permissões do Controle de Acesso em `permissoes_exigidas`.
+    """
 
     modelo = None
     serializer = None
     filtros: dict = {}
+    permissoes_exigidas: tuple = ()
+    ACOES_DE_LEITURA = {"list", "retrieve", "vinculos"}
+
+    def get_permissions(self):
+        permissoes = super().get_permissions()
+        if self.action in self.ACOES_DE_LEITURA:
+            return permissoes
+        return [*permissoes, ExigePermissao()]
 
     def preencher(self, obj, dados):
         raise NotImplementedError
@@ -98,6 +113,7 @@ class UnidadeViewSet(CadastroViewSet):
 
     modelo = Unidade
     serializer = UnidadeSerializer
+    permissoes_exigidas = ("acesso.cadastrar_unidade",)
     filtros = {"distritoId": "distrito_id", "tipo": "tipo", "status": "status"}
 
     def preencher(self, obj, dados):
@@ -122,6 +138,7 @@ class UsuarioViewSet(CadastroViewSet):
 
     modelo = Avaliado
     serializer = UsuarioSerializer
+    permissoes_exigidas = ("acesso.cadastrar_avaliado",)
     filtros = {"perfilId": "perfil", "status": "status", "distritoId": "distrito_id", "unidadeId": "unidade_id"}
 
     def preencher(self, obj, dados):
@@ -150,11 +167,15 @@ def vinculos(request):
     )
 
 
-@api_view(["POST"])
-def importar(request):
+class ImportarView(APIView):
     """POST /api/cadastro/importar/ — {"distritos": [], "unidades": [], "usuarios": []} (tudo ou nada)."""
-    try:
-        resumo = services.importar(request.data, _autor(request))
-    except services.ImportacaoInvalida as e:
-        return Response({"detail": str(e), "erros": e.erros}, status=status.HTTP_400_BAD_REQUEST)
-    return Response(resumo, status=status.HTTP_201_CREATED)
+
+    permission_classes = [IsAuthenticated, ExigePermissao]
+    permissoes_exigidas = ("acesso.cadastrar_unidade", "acesso.cadastrar_avaliado")
+
+    def post(self, request):
+        try:
+            resumo = services.importar(request.data, _autor(request))
+        except services.ImportacaoInvalida as e:
+            return Response({"detail": str(e), "erros": e.erros}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(resumo, status=status.HTTP_201_CREATED)

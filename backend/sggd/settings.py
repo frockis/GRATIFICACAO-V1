@@ -55,6 +55,11 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
+# Modo demonstração do protótipo (apps/acesso/autenticacao.py): o perfil escolhido
+# no seletor do front (cabeçalho X-Perfil) vira um usuário de demonstração com o
+# papel equivalente. Só tem efeito com DEBUG ligado. Sai com a autenticação institucional.
+SGGD_PERFIL_SIMULADO = os.environ.get("SGGD_PERFIL_SIMULADO", "0") == "1"
+
 
 # Application definition
 
@@ -132,7 +137,9 @@ REST_FRAMEWORK = {
     # autenticação institucional (OIDC ou SAML), ainda não confirmado. Fica só a
     # sessão do Django (a mesma do admin); BasicAuthentication foi retirada para
     # não aceitar senha em cada requisição.
+    # PerfilSimuladoAuthentication só age com DEBUG e SGGD_PERFIL_SIMULADO ligados.
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.acesso.autenticacao.PerfilSimuladoAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     # Negar por padrão: toda view da API exige usuário autenticado, e as
@@ -140,6 +147,8 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    # O front trabalha com listas simples, como no mockData.ts.
+    "DEFAULT_PAGINATION_CLASS": None,
 }
 
 
