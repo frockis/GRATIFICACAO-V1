@@ -155,3 +155,5 @@ cython_debug/
 *.swp
 *.swo
 .DS_Store
+# Arquivos estáticos coletados (collectstatic)
+staticfiles/

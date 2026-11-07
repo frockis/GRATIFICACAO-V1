@@ -3,14 +3,21 @@ import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { IndicadorDetalhes } from '../components/IndicadorDetalhes';
 import { filtrarRegistrosPorEscopo, labelEscopo } from '../utils/escopo';
-import { UNIDADES, DISTRITOS } from '../data/mockData';
 import type { RegistroIndicador } from '../types';
 
 type Acao = 'correcao' | 'devolucao' | null;
 
 export function Validacao() {
-  const { registros, perfilAtual, competenciaId, competencias, validarRegistro, solicitarCorrecao, devolverRegistro } =
-    useApp();
+  const {
+    registros,
+    perfilAtual,
+    competenciaId,
+    competencias,
+    validarRegistro,
+    solicitarCorrecao,
+    devolverRegistro,
+    cadastro,
+  } = useApp();
   const [detalhe, setDetalhe] = useState<RegistroIndicador | null>(null);
   const [acaoAtiva, setAcaoAtiva] = useState<{ tipo: Acao; registro: RegistroIndicador } | null>(null);
   const [motivo, setMotivo] = useState('');
@@ -19,17 +26,17 @@ export function Validacao() {
 
   const registrosEscopo = useMemo(
     () =>
-      filtrarRegistrosPorEscopo(registros, perfilAtual)
+      filtrarRegistrosPorEscopo(registros, perfilAtual, cadastro)
         .filter((r) => r.competenciaId === competenciaId)
         .filter((r) => r.status !== 'Rascunho'),
-    [registros, perfilAtual, competenciaId],
+    [registros, perfilAtual, competenciaId, cadastro],
   );
 
   function nomeUnidade(id: string) {
-    return UNIDADES.find((u) => u.id === id)?.nome ?? id;
+    return cadastro.unidades.find((u) => u.id === id)?.nome ?? id;
   }
   function nomeDistrito(id: string) {
-    return DISTRITOS.find((d) => d.id === id)?.nome ?? id;
+    return cadastro.distritos.find((d) => d.id === id)?.nome ?? id;
   }
 
   function abrirAcao(tipo: Acao, registro: RegistroIndicador) {
@@ -54,7 +61,7 @@ export function Validacao() {
     <div>
       <div className="page-header">
         <div className="page-header-titles">
-          <div className="breadcrumb">{labelEscopo(perfilAtual)}</div>
+          <div className="breadcrumb">{labelEscopo(perfilAtual, cadastro)}</div>
           <h1>Validação — {competencia?.label}</h1>
         </div>
       </div>

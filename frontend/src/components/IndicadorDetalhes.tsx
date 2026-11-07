@@ -1,5 +1,6 @@
 import type { RegistroIndicador } from '../types';
-import { UNIDADES, DISTRITOS, INDICADORES_CATALOGO } from '../data/mockData';
+import { INDICADORES_CATALOGO } from '../data/mockData';
+import { useApp } from '../context/AppContext';
 import { StatusBadge } from './StatusBadge';
 
 interface Props {
@@ -8,8 +9,9 @@ interface Props {
 }
 
 export function IndicadorDetalhes({ registro, onClose }: Props) {
-  const unidade = UNIDADES.find((u) => u.id === registro.unidadeId);
-  const distrito = DISTRITOS.find((d) => d.id === registro.distritoId);
+  const { cadastro } = useApp();
+  const unidade = cadastro.unidades.find((u) => u.id === registro.unidadeId);
+  const distrito = cadastro.distritos.find((d) => d.id === registro.distritoId);
   const catalogo = INDICADORES_CATALOGO.find((i) => i.codigo === registro.indicadorCodigo);
 
   const valorBase = registro.valorValidado ?? registro.valorInformado;

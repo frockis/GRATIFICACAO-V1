@@ -24,17 +24,22 @@ export interface Distrito {
   nome: string;
 }
 
+export type StatusCadastro = 'Ativo' | 'Inativo';
+
 export interface Unidade {
   id: string;
   nome: string;
   distritoId: string;
   tipo: string; // Tipo de unidade (ex: USF, UPA, Policlínica)
+  cnes?: string;
+  status?: StatusCadastro; // ausente = Ativo (dados do mockData)
 }
 
 export interface Usuario {
   id: string;
   nome: string;
   email: string;
+  matricula?: string;
   perfilId: PerfilId;
   unidadeId?: string;
   distritoId?: string;

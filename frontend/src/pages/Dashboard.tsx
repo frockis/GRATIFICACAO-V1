@@ -3,16 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { filtrarRegistrosPorEscopo, labelEscopo } from '../utils/escopo';
-import { UNIDADES, DISTRITOS } from '../data/mockData';
 
 export function Dashboard() {
-  const { registros, perfilAtual, competenciaId, competencias } = useApp();
+  const { registros, perfilAtual, competenciaId, competencias, cadastro } = useApp();
   const navigate = useNavigate();
   const competencia = competencias.find((c) => c.id === competenciaId);
 
   const registrosCompetencia = useMemo(
-    () => filtrarRegistrosPorEscopo(registros, perfilAtual).filter((r) => r.competenciaId === competenciaId),
-    [registros, perfilAtual, competenciaId],
+    () =>
+      filtrarRegistrosPorEscopo(registros, perfilAtual, cadastro).filter((r) => r.competenciaId === competenciaId),
+    [registros, perfilAtual, competenciaId, cadastro],
   );
 
   const pendentes = registrosCompetencia.filter((r) => r.status === 'Rascunho' || r.status === 'Devolvido');
@@ -28,11 +28,11 @@ export function Dashboard() {
   }, [registrosCompetencia]);
 
   function nomeUnidade(unidadeId: string) {
-    return UNIDADES.find((u) => u.id === unidadeId)?.nome ?? unidadeId;
+    return cadastro.unidades.find((u) => u.id === unidadeId)?.nome ?? unidadeId;
   }
 
   function nomeDistrito(distritoId: string) {
-    return DISTRITOS.find((d) => d.id === distritoId)?.nome ?? distritoId;
+    return cadastro.distritos.find((d) => d.id === distritoId)?.nome ?? distritoId;
   }
 
   return (
@@ -40,7 +40,7 @@ export function Dashboard() {
       <div className="page-header">
         <div className="page-header-titles">
           <div className="breadcrumb">Painel geral</div>
-          <h1>Dashboard — {labelEscopo(perfilAtual)}</h1>
+          <h1>Dashboard — {labelEscopo(perfilAtual, cadastro)}</h1>
         </div>
         <div className="page-header-actions">
           <button className="btn" type="button" onClick={() => navigate('/indicadores')}>

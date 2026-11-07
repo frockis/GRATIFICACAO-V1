@@ -3,24 +3,23 @@ import { useApp } from '../context/AppContext';
 import { StatusBadge } from '../components/StatusBadge';
 import { IndicadorDetalhes } from '../components/IndicadorDetalhes';
 import { filtrarRegistrosPorEscopo, labelEscopo, unidadesDoEscopo } from '../utils/escopo';
-import { DISTRITOS } from '../data/mockData';
 import type { RegistroIndicador, StatusIndicador } from '../types';
 
 const STATUS_OPCOES: StatusIndicador[] = ['Rascunho', 'Enviado', 'Em revisão', 'Devolvido', 'Validado', 'Fechado'];
 
 export function Indicadores() {
-  const { registros, perfilAtual, competenciaId, competencias } = useApp();
+  const { registros, perfilAtual, competenciaId, competencias, cadastro } = useApp();
   const [distritoFiltro, setDistritoFiltro] = useState('todos');
   const [tipoFiltro, setTipoFiltro] = useState('todos');
   const [statusFiltro, setStatusFiltro] = useState('todos');
   const [selecionado, setSelecionado] = useState<RegistroIndicador | null>(null);
 
-  const unidadesEscopo = unidadesDoEscopo(perfilAtual);
-  const distritosDisponiveis = DISTRITOS.filter((d) => unidadesEscopo.some((u) => u.distritoId === d.id));
+  const unidadesEscopo = unidadesDoEscopo(perfilAtual, cadastro);
+  const distritosDisponiveis = cadastro.distritos.filter((d) => unidadesEscopo.some((u) => u.distritoId === d.id));
   const tiposDisponiveis = Array.from(new Set(unidadesEscopo.map((u) => u.tipo)));
 
   const registrosFiltrados = useMemo(() => {
-    let lista = filtrarRegistrosPorEscopo(registros, perfilAtual).filter(
+    let lista = filtrarRegistrosPorEscopo(registros, perfilAtual, cadastro).filter(
       (r) => r.competenciaId === competenciaId,
     );
     if (distritoFiltro !== 'todos') lista = lista.filter((r) => r.distritoId === distritoFiltro);
@@ -30,7 +29,7 @@ export function Indicadores() {
       lista = lista.filter((r) => unidadesTipo.has(r.unidadeId));
     }
     return lista;
-  }, [registros, perfilAtual, competenciaId, distritoFiltro, statusFiltro, tipoFiltro, unidadesEscopo]);
+  }, [registros, perfilAtual, competenciaId, distritoFiltro, statusFiltro, tipoFiltro, unidadesEscopo, cadastro]);
 
   function nomeUnidade(unidadeId: string) {
     return unidadesEscopo.find((u) => u.id === unidadeId)?.nome ?? unidadeId;
@@ -42,7 +41,7 @@ export function Indicadores() {
     <div>
       <div className="page-header">
         <div className="page-header-titles">
-          <div className="breadcrumb">{labelEscopo(perfilAtual)}</div>
+          <div className="breadcrumb">{labelEscopo(perfilAtual, cadastro)}</div>
           <h1>Indicadores — {competencia?.label}</h1>
         </div>
       </div>

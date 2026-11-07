@@ -1,0 +1,24 @@
+{
+  "distritos": [
+    { "id": "d1", "nome": "Distrito I" },
+    { "id": "d2", "nome": "Distrito II" },
+    { "id": "d3", "nome": "Distrito III" }
+  ],
+  "unidades": [
+    { "id": "u1", "nome": "USF Boa Viagem", "distritoId": "d1", "tipo": "USF" },
+    { "id": "u2", "nome": "USF Casa Amarela", "distritoId": "d1", "tipo": "USF" },
+    { "id": "u3", "nome": "USF Ibura", "distritoId": "d2", "tipo": "USF" },
+    { "id": "u4", "nome": "USF Várzea", "distritoId": "d3", "tipo": "USF" }
+  ],
+  "usuarios": [
+    { "id": "us1", "nome": "Ana Beatriz Souza", "email": "ana.souza@saude.gov.br", "perfilId": "gestor", "unidadeId": "u1", "status": "Ativo" },
+    { "id": "us2", "nome": "Carlos Eduardo Lima", "email": "carlos.lima@saude.gov.br", "perfilId": "gestor", "unidadeId": "u2", "status": "Ativo" },
+    { "id": "us3", "nome": "Fernanda Alves Rocha", "email": "fernanda.rocha@saude.gov.br", "perfilId": "gestor", "unidadeId": "u3", "status": "Ativo" },
+    { "id": "us4", "nome": "João Pedro Nascimento", "email": "joao.nascimento@saude.gov.br", "perfilId": "gestor", "unidadeId": "u4", "status": "Ativo" },
+    { "id": "us5", "nome": "Marcela Torres Dias", "email": "marcela.dias@saude.gov.br", "perfilId": "coordenador", "distritoId": "d1", "status": "Ativo" },
+    { "id": "us6", "nome": "Roberto Cavalcanti", "email": "roberto.cavalcanti@saude.gov.br", "perfilId": "coordenador", "distritoId": "d2", "status": "Ativo" },
+    { "id": "us7", "nome": "Patrícia Gomes Freitas", "email": "patricia.freitas@saude.gov.br", "perfilId": "seab", "status": "Ativo" },
+    { "id": "us8", "nome": "Diego Martins Barros", "email": "diego.barros@saude.gov.br", "perfilId": "configurador", "status": "Ativo" },
+    { "id": "us9", "nome": "Luciana Pereira Melo", "email": "luciana.melo@saude.gov.br", "perfilId": "coordenador", "distritoId": "d3", "status": "Inativo" }
+  ]
+}

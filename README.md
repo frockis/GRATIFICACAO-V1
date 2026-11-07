@@ -94,6 +94,14 @@ Os arquivos gerados ficam em `dist/`. Para servi-los localmente e conferir o res
 npm run preview
 ```
 
+## Backend (em construção)
+
+A pasta [`backend/`](backend/README.md) tem o backend em Django, um app por componente do plano de
+desenvolvimento. Já existe o componente **Cadastro de Avaliados e Unidades**: com o backend rodando
+(`python manage.py runserver` em `backend/`), distritos, unidades e usuários passam a vir da API e a tela
+**Usuários e Permissões** cadastra, edita e inativa pessoas e unidades de verdade, com registro na
+**Auditoria**. Sem o backend, o front continua usando o `mockData.ts`. Instruções em `backend/README.md`.
+
 ## Como navegar no protótipo
 
 1. Na tela de login, clique em **Entrar** (não é necessário preencher usuário/senha reais).

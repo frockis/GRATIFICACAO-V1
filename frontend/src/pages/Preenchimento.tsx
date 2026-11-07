@@ -6,7 +6,8 @@ import { filtrarRegistrosPorEscopo, labelEscopo } from '../utils/escopo';
 import type { RegistroIndicador } from '../types';
 
 export function Preenchimento() {
-  const { registros, perfilAtual, competenciaId, competencias, salvarRascunho, enviarParaRevisao } = useApp();
+  const { registros, perfilAtual, competenciaId, competencias, salvarRascunho, enviarParaRevisao, cadastro } =
+    useApp();
   const [selecionado, setSelecionado] = useState<RegistroIndicador | null>(null);
   const [valor, setValor] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -15,8 +16,9 @@ export function Preenchimento() {
   const competencia = competencias.find((c) => c.id === competenciaId);
 
   const registrosEscopo = useMemo(
-    () => filtrarRegistrosPorEscopo(registros, perfilAtual).filter((r) => r.competenciaId === competenciaId),
-    [registros, perfilAtual, competenciaId],
+    () =>
+      filtrarRegistrosPorEscopo(registros, perfilAtual, cadastro).filter((r) => r.competenciaId === competenciaId),
+    [registros, perfilAtual, competenciaId, cadastro],
   );
 
   function abrirFormulario(registro: RegistroIndicador) {
@@ -52,7 +54,7 @@ export function Preenchimento() {
     <div>
       <div className="page-header">
         <div className="page-header-titles">
-          <div className="breadcrumb">{labelEscopo(perfilAtual)}</div>
+          <div className="breadcrumb">{labelEscopo(perfilAtual, cadastro)}</div>
           <h1>Preenchimento de indicadores — {competencia?.label}</h1>
         </div>
       </div>

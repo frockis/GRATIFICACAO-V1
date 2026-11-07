@@ -20,7 +20,7 @@ const ITENS: NavItem[] = [
 ];
 
 export function Sidebar() {
-  const { perfilAtual } = useApp();
+  const { perfilAtual, fonteCadastro } = useApp();
   const itensVisiveis = ITENS.filter((item) => !item.perfis || item.perfis.includes(perfilAtual));
 
   return (
@@ -44,7 +44,11 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="sidebar-footer">
-        <p className="helper-text">Protótipo v1 · dados fictícios</p>
+        <p className="helper-text">
+          {fonteCadastro === 'api'
+            ? 'Protótipo v1 · cadastro conectado ao backend'
+            : 'Protótipo v1 · dados fictícios'}
+        </p>
       </div>
     </aside>
   );
