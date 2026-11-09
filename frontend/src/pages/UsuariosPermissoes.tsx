@@ -38,7 +38,10 @@ function StatusCadastroBadge({ status }: { status: StatusCadastro }) {
 }
 
 export function UsuariosPermissoes() {
-  const { cadastro, fonteCadastro, alterarStatusUsuario, alterarStatusUnidade } = useApp();
+  const { cadastro, fonteCadastro, perfilAtual, alterarStatusUsuario, alterarStatusUnidade } = useApp();
+  // Só o Configurador cadastra (permissões acesso.cadastrar_* no backend); SEAB/CAM só consulta.
+  const podeEditar = perfilAtual === 'configurador';
+  const colunas = podeEditar ? 7 : 6;
   const [aba, setAba] = useState<Aba>('pessoas');
   const [perfilFiltro, setPerfilFiltro] = useState('todos');
   const [statusFiltro, setStatusFiltro] = useState('todos');
@@ -83,7 +86,7 @@ export function UsuariosPermissoes() {
           <h1>Usuários e Permissões</h1>
         </div>
         <div className="page-header-actions">
-          {aba === 'pessoas' ? (
+          {!podeEditar ? null : aba === 'pessoas' ? (
             <button className="btn btn-primary" type="button" onClick={() => setEditandoUsuario('novo')}>
               + Novo usuário
             </button>
@@ -114,6 +117,11 @@ export function UsuariosPermissoes() {
         {fonteCadastro === 'mock' && (
           <p className="helper-text" style={{ marginTop: 12 }}>
             Backend desligado: usando os dados fictícios. As alterações valem só nesta sessão.
+          </p>
+        )}
+        {!podeEditar && (
+          <p className="helper-text" style={{ marginTop: 12 }}>
+            Somente leitura: cadastros e alterações são feitos pelo Configurador SAB.
           </p>
         )}
       </div>
@@ -190,7 +198,7 @@ export function UsuariosPermissoes() {
                   <th>Distrito</th>
                   <th>Tipo de unidade</th>
                   <th>Status</th>
-                  <th>Ações</th>
+                  {podeEditar && <th>Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -207,26 +215,28 @@ export function UsuariosPermissoes() {
                     <td>
                       <StatusCadastroBadge status={u.status} />
                     </td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
-                      <button className="btn-link" type="button" onClick={() => setEditandoUsuario(u)}>
-                        Editar
-                      </button>{' '}
-                      ·{' '}
-                      <button
-                        className="btn-link"
-                        type="button"
-                        onClick={() =>
-                          mudarStatus(alterarStatusUsuario(u.id, u.status === 'Ativo' ? 'Inativo' : 'Ativo'))
-                        }
-                      >
-                        {u.status === 'Ativo' ? 'Inativar' : 'Reativar'}
-                      </button>
-                    </td>
+                    {podeEditar && (
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button className="btn-link" type="button" onClick={() => setEditandoUsuario(u)}>
+                          Editar
+                        </button>{' '}
+                        ·{' '}
+                        <button
+                          className="btn-link"
+                          type="button"
+                          onClick={() =>
+                            mudarStatus(alterarStatusUsuario(u.id, u.status === 'Ativo' ? 'Inativo' : 'Ativo'))
+                          }
+                        >
+                          {u.status === 'Ativo' ? 'Inativar' : 'Reativar'}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {usuariosFiltrados.length === 0 && (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={colunas}>
                       <div className="empty-state">Nenhuma pessoa encontrada para os filtros selecionados.</div>
                     </td>
                   </tr>
@@ -245,7 +255,7 @@ export function UsuariosPermissoes() {
                   <th>CNES</th>
                   <th className="cell-num">Pessoas ativas</th>
                   <th>Status</th>
-                  <th>Ações</th>
+                  {podeEditar && <th>Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -264,27 +274,29 @@ export function UsuariosPermissoes() {
                       <td>
                         <StatusCadastroBadge status={status} />
                       </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        <button className="btn-link" type="button" onClick={() => setEditandoUnidade(u)}>
-                          Editar
-                        </button>{' '}
-                        ·{' '}
-                        <button
-                          className="btn-link"
-                          type="button"
-                          onClick={() =>
-                            mudarStatus(alterarStatusUnidade(u.id, status === 'Ativo' ? 'Inativo' : 'Ativo'))
-                          }
-                        >
-                          {status === 'Ativo' ? 'Inativar' : 'Reativar'}
-                        </button>
-                      </td>
+                      {podeEditar && (
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          <button className="btn-link" type="button" onClick={() => setEditandoUnidade(u)}>
+                            Editar
+                          </button>{' '}
+                          ·{' '}
+                          <button
+                            className="btn-link"
+                            type="button"
+                            onClick={() =>
+                              mudarStatus(alterarStatusUnidade(u.id, status === 'Ativo' ? 'Inativo' : 'Ativo'))
+                            }
+                          >
+                            {status === 'Ativo' ? 'Inativar' : 'Reativar'}
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
                 {unidadesFiltradas.length === 0 && (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={colunas}>
                       <div className="empty-state">Nenhuma unidade encontrada para os filtros selecionados.</div>
                     </td>
                   </tr>
