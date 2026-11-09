@@ -1,3 +1,5 @@
+from functools import cached_property
+
 from django.core.exceptions import ValidationError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
@@ -8,7 +10,8 @@ from rest_framework.views import APIView
 from apps.acesso.interface import ExigePermissao, identificacao
 
 from . import services
-from .models import Avaliado, Distrito, Unidade
+from .escopo import Escopo, escopo_do_request
+from .models import Avaliado, Unidade
 from .serializers import DistritoSerializer, UnidadeSerializer, UsuarioSerializer
 
 # Erro do modelo → campo do front
@@ -31,8 +34,9 @@ def _erro(e: ValidationError) -> Response:
 class CadastroViewSet(viewsets.ViewSet):
     """Base: listar, detalhar, criar (POST), alterar (PATCH) e inativar. Não existe DELETE.
 
-    Leitura exige só usuário autenticado (padrão do projeto). As demais ações exigem
-    as permissões do Controle de Acesso em `permissoes_exigidas`.
+    Leitura exige usuário autenticado e mostra só o que está no escopo dele (escopo.py):
+    fora do escopo o registro responde 404, como se não existisse. As demais ações exigem
+    as permissões do Controle de Acesso em `permissoes_exigidas` (quem as tem vê o município).
     """
 
     modelo = None
@@ -50,18 +54,23 @@ class CadastroViewSet(viewsets.ViewSet):
     def preencher(self, obj, dados):
         raise NotImplementedError
 
+    @cached_property
+    def escopo(self) -> Escopo:
+        return escopo_do_request(self.request)
+
+    def do_escopo(self, escopo: Escopo):
+        """Queryset do modelo recortado pelo escopo (cada cadastro diz qual é)."""
+        raise NotImplementedError
+
     def get_queryset(self):
-        qs = self.modelo.objects.all()
+        qs = self.do_escopo(self.escopo)
         for parametro, campo in self.filtros.items():
             if valor := self.request.query_params.get(parametro):
                 qs = qs.filter(**{campo: valor})
         return qs
 
     def _obter(self, pk):
-        try:
-            return self.modelo.objects.get(pk=pk)
-        except self.modelo.DoesNotExist:
-            return None
+        return self.do_escopo(self.escopo).filter(pk=pk).first()
 
     def list(self, request):
         return Response(self.serializer(self.get_queryset(), many=True).data)
@@ -104,8 +113,10 @@ class CadastroViewSet(viewsets.ViewSet):
 
 
 class DistritoViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Distrito.objects.all()
     serializer_class = DistritoSerializer
+
+    def get_queryset(self):
+        return escopo_do_request(self.request).distritos()
 
 
 class UnidadeViewSet(CadastroViewSet):
@@ -115,6 +126,9 @@ class UnidadeViewSet(CadastroViewSet):
     serializer = UnidadeSerializer
     permissoes_exigidas = ("acesso.cadastrar_unidade",)
     filtros = {"distritoId": "distrito_id", "tipo": "tipo", "status": "status"}
+
+    def do_escopo(self, escopo):
+        return escopo.unidades()
 
     def preencher(self, obj, dados):
         services.preencher_unidade(obj, dados, incluir_status=False)
@@ -130,7 +144,9 @@ class UnidadeViewSet(CadastroViewSet):
     @action(detail=True, methods=["get"])
     def vinculos(self, request, pk=None):
         """Pessoas avaliadas vinculadas à unidade (para Apuração e Homologação)."""
-        return Response(services.vinculos_unidade_pessoa(unidade_id=pk))
+        if self._obter(pk) is None:
+            return Response({"detail": "Não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(services.vinculos_unidade_pessoa(unidade_id=pk, escopo=self.escopo))
 
 
 class UsuarioViewSet(CadastroViewSet):
@@ -141,11 +157,11 @@ class UsuarioViewSet(CadastroViewSet):
     permissoes_exigidas = ("acesso.cadastrar_avaliado",)
     filtros = {"perfilId": "perfil", "status": "status", "distritoId": "distrito_id", "unidadeId": "unidade_id"}
 
+    def do_escopo(self, escopo):
+        return escopo.avaliados().select_related("unidade")
+
     def preencher(self, obj, dados):
         services.preencher_usuario(obj, dados, incluir_status=False)
-
-    def get_queryset(self):
-        return super().get_queryset().select_related("unidade")
 
     @action(detail=True, methods=["post"])
     def inativar(self, request, pk=None):
@@ -158,11 +174,12 @@ class UsuarioViewSet(CadastroViewSet):
 
 @api_view(["GET"])
 def vinculos(request):
-    """GET /api/vinculos/?unidadeId=&distritoId= — vínculo unidade-pessoa dos avaliados ativos."""
+    """GET /api/vinculos/?unidadeId=&distritoId= — vínculo unidade-pessoa dos avaliados ativos (do escopo)."""
     return Response(
         services.vinculos_unidade_pessoa(
             unidade_id=request.query_params.get("unidadeId"),
             distrito_id=request.query_params.get("distritoId"),
+            escopo=escopo_do_request(request),
         )
     )
 

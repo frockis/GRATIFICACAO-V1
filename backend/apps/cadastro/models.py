@@ -4,6 +4,7 @@ Do plano de desenvolvimento:
 - Define as classes 'Avaliado' e 'Unidade';
 - Cadastra avaliados e unidades por JSON/https;
 - Exibe o vínculo unidade-pessoa para 'apuração e homologação';
+- Controla o que cada usuário pode visualizar (escopo: unidade, distrito ou município — escopo.py);
 - Envia o que foi cadastrado para 'registro de auditoria'.
 
 Os campos seguem os tipos do front (src/types/index.ts): Distrito, Unidade e
@@ -12,9 +13,10 @@ do protótipo já usa (registros de indicadores, escopo etc.).
 """
 import re
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
-from django.db import models
+from django.db import IntegrityError, models, transaction
 
 
 class Status(models.TextChoices):
@@ -53,6 +55,7 @@ def proximo_id(modelo, prefixo: str) -> str:
 
 class ComIdTexto(models.Model):
     PREFIXO = ""
+    TENTATIVAS_DE_ID = 5
 
     id = models.CharField(primary_key=True, max_length=40, blank=True)
 
@@ -60,9 +63,23 @@ class ComIdTexto(models.Model):
         abstract = True
 
     def save(self, *args, **kwargs):
-        if not self.id:
+        if self.id:
+            return super().save(*args, **kwargs)
+        # Id gerado aqui: grava com INSERT forçado. Sem isso o Django tenta UPDATE antes
+        # (a PK não tem default) e, com dois cadastros simultâneos que geraram o mesmo id,
+        # o segundo sobrescreveria o primeiro em silêncio. Com o INSERT, a colisão vira
+        # IntegrityError e um novo id é gerado.
+        kwargs["force_insert"] = True
+        for tentativa in range(1, self.TENTATIVAS_DE_ID + 1):
             self.id = proximo_id(type(self), self.PREFIXO)
-        super().save(*args, **kwargs)
+            try:
+                with transaction.atomic():
+                    return super().save(*args, **kwargs)
+            except IntegrityError:
+                colidiu = type(self).objects.filter(pk=self.id).exists()
+                self.id = ""
+                if not colidiu or tentativa == self.TENTATIVAS_DE_ID:
+                    raise  # outra restrição (e-mail, CNES...) ou colisões demais
 
 
 class Distrito(ComIdTexto):
@@ -139,6 +156,16 @@ class Avaliado(ComIdTexto):
         Distrito, on_delete=models.PROTECT, related_name="avaliados", null=True, blank=True
     )
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ATIVO)
+    # Login (Controle de Acesso) desta pessoa. Define o escopo do que ela vê (ver escopo.py).
+    # Referência pelo AUTH_USER_MODEL: o cadastro não importa o app acesso.
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="avaliado",
+        null=True,
+        blank=True,
+        verbose_name="login",
+    )
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
 
