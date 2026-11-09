@@ -168,7 +168,8 @@ O que o plano de desenvolvimento pede e onde está:
 | Define classes Avaliado e Unidade | `apps/cadastro/models.py` (+ Distrito). Campos iguais aos tipos `Usuario`, `Unidade` e `Distrito` do front |
 | Cadastra avaliados e unidades por JSON/https | `POST /api/cadastro/importar/` e `python manage.py importar_cadastro arquivo.json` (tudo ou nada) |
 | Exibe vínculo unidade-pessoa para apuração | `GET /api/vinculos/?unidadeId=&distritoId=` e `apps.cadastro.interface.vinculos_unidade_pessoa()` |
-| É registrado em auditoria | toda criação/alteração chama `apps.auditoria.interface.registrar()` ("Unidade cadastrada", "Vínculo alterado"...) |
+| Controla o que cada usuário visualiza | `apps/cadastro/escopo.py`: a API só devolve o escopo de quem pede; outros componentes usam `apps.cadastro.interface.escopo_do_request()` (ver [Escopo de visualização](#escopo-de-visualização)) |
+| É registrado em auditoria | toda criação/alteração chama `apps.auditoria.interface.registrar()` ("Unidade cadastrada", "Vínculo alterado", "Login vinculado"...) |
 
 Regras (as mesmas do `frontend/src/utils/escopo.ts`):
 - **Gestor de Unidade** precisa de unidade; o distrito é o da unidade.
@@ -180,10 +181,44 @@ Regras (as mesmas do `frontend/src/utils/escopo.ts`):
 O campo `perfil` do Avaliado é o **vínculo** da pessoa (usado no escopo territorial e no cálculo da
 gratificação). Ele não dá permissão nenhuma: permissões vêm dos papéis do Controle de Acesso.
 
+### Escopo de visualização
+
+O campo `usuario` (rótulo "login" no Admin) liga o `Avaliado` ao `Usuario` do Controle de Acesso.
+Um login só pode estar ligado a uma pessoa. Hoje quem faz a ligação é o superusuário, pelo Django
+Admin. A ligação e a remoção ficam na auditoria como "Login vinculado" e "Login desvinculado".
+
+O escopo de quem faz a requisição é calculado assim:
+
+| Quem pede | Vê |
+|---|---|
+| Tem `acesso.cadastrar_unidade` ou `acesso.cadastrar_avaliado` (Configurador, superusuário) | o município |
+| Login ligado a uma pessoa **ativa** SEAB/CAM ou Configurador | o município |
+| Login ligado a um Gestor de Unidade ativo | a unidade dele (e o distrito dela) |
+| Login ligado a um Coordenador Distrital ativo | o distrito dele |
+| Login sem pessoa ligada, ou ligado a pessoa inativa | nada |
+| Modo demonstração (`X-Perfil`) | o escopo do 1º Avaliado ativo do perfil, a mesma pessoa que o front usa |
+
+Na API, um registro fora do escopo responde **404**, como se não existisse. Os filtros da query não
+ampliam o escopo.
+
+Para outros componentes, como a publicação filtrando resultados:
+
+```python
+from apps.cadastro.interface import escopo_do_request
+
+escopo = escopo_do_request(request)    # request do Django ou do DRF
+resultados.filter(unidade_id__in=escopo.unidade_ids())
+escopo.alcanca_unidade("u3")           # True/False
+```
+
+`vinculos_unidade_pessoa()` sem o argumento `escopo` continua devolvendo o município inteiro, para
+uso interno (ex.: a apuração).
+
 ### API
 
-Leitura: qualquer usuário autenticado. Escrita: `acesso.cadastrar_unidade` (unidades) e
-`acesso.cadastrar_avaliado` (pessoas); a importação exige as duas.
+Leitura: usuário autenticado, recortada pelo [escopo](#escopo-de-visualização). Escrita:
+`acesso.cadastrar_unidade` (unidades) e `acesso.cadastrar_avaliado` (pessoas); a importação exige as
+duas.
 
 | Método | Rota | |
 |---|---|---|
@@ -191,7 +226,7 @@ Leitura: qualquer usuário autenticado. Escrita: `acesso.cadastrar_unidade` (uni
 | GET / POST | `/api/unidades/` | filtros `distritoId`, `tipo`, `status` |
 | GET / PATCH | `/api/unidades/{id}/` | sem DELETE |
 | POST | `/api/unidades/{id}/inativar/` · `/reativar/` | |
-| GET | `/api/unidades/{id}/vinculos/` | avaliados da unidade |
+| GET | `/api/unidades/{id}/vinculos/` | avaliados da unidade (404 se a unidade não existe ou está fora do escopo) |
 | GET / POST | `/api/usuarios/` | filtros `perfilId`, `status`, `distritoId`, `unidadeId` |
 | GET / PATCH | `/api/usuarios/{id}/` | |
 | POST | `/api/usuarios/{id}/inativar/` · `/reativar/` | |
@@ -202,7 +237,11 @@ Leitura: qualquer usuário autenticado. Escrita: `acesso.cadastrar_unidade` (uni
 ### Premissas a validar com a CAM
 - Lista de tipos de unidade (hoje: USF, UBT, UPA, Policlínica, CAPS, Outro).
 - Fonte oficial para a carga real das unidades e avaliados.
-- Ligação entre o `Usuario` do Controle de Acesso (quem faz login) e o `Avaliado` (a pessoa cadastrada).
+- Quem liga o login à pessoa no uso real (hoje: superusuário pelo Admin), e se a carga JSON deve
+  trazer essa ligação.
+- Escopo do Técnico, que não é um perfil do cadastro.
+- Vínculo com vigência: hoje só existe o vínculo atual. O histórico por competência fica só na
+  auditoria.
 
 ## Componente Registro de Auditoria (`apps/auditoria`)
 
