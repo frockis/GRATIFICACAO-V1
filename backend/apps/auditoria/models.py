@@ -19,6 +19,21 @@ class RegistroAuditoria(models.Model):
     valor_anterior = models.TextField(blank=True)
     novo_valor = models.TextField(blank=True)
     localizacao = models.CharField(max_length=200, blank=True)
+    unidade = models.ForeignKey(
+        "cadastro.Unidade",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="registros_auditoria",
+    )
+
+    distrito = models.ForeignKey(
+        "cadastro.Distrito",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="registros_auditoria",
+    )
 
     class Meta:
         verbose_name = "registro de auditoria"
