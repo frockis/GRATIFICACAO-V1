@@ -5,11 +5,28 @@ from .models import RegistroAuditoria
 
 @admin.register(RegistroAuditoria)
 class RegistroAuditoriaAdmin(admin.ModelAdmin):
-    list_display = ["data_hora", "componente", "usuario", "perfil", "operacao", "registro_afetado"]
-    list_filter = ["componente", "operacao"]
-    search_fields = ["usuario", "registro_afetado"]
+    """Consulta técnica. O rastro não se edita pelo admin."""
 
-    # Log não se edita nem se apaga (requisitos de segurança).
+    list_display = (
+        "ocorrido_em",
+        "usuario_identificacao",
+        "operacao",
+        "entidade",
+        "identificador",
+    )
+    list_filter = ("entidade", "operacao")
+    search_fields = ("identificador", "usuario_identificacao", "valor_novo")
+    readonly_fields = (
+        "ocorrido_em",
+        "usuario",
+        "usuario_identificacao",
+        "operacao",
+        "entidade",
+        "identificador",
+        "valor_anterior",
+        "valor_novo",
+    )
+
     def has_add_permission(self, request):
         return False
 

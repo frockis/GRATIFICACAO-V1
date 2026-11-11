@@ -249,3 +249,52 @@ Base mínima: modelo `RegistroAuditoria` (campos iguais a `AuditoriaEntrada` do 
 `registrar()` exposta em `apps/auditoria/interface.py` e a listagem `GET /api/auditoria/`. Registros não
 são editados nem apagados. Pendente: permissão própria para consultar a auditoria (hoje basta estar
 autenticado).
+
+
+## Componente Normativa e Indicadores (`apps/normativa`)
+
+O que apresentar ao time:
+
+- Este componente cadastra a **normativa** (versão da portaria, ex.: CAM 1.2), a **competência**
+  (o mês e a versão que vale nele), o **indicador** (e subindicador) e a **regra de cálculo**
+  (peso da portaria, peso excepcional, meta, cargo e tipo de unidade).
+- Não calcula pontuação: isso continua na apuração. Não grava o valor coletado: isso continua na
+  coleta. Não encerra o ciclo: a permissão `encerrar_ciclo` segue na apuração. A competência só
+  impede que uma portaria nova reescreva um mês já amarrado a uma versão.
+- Quem cadastra é o papel **Configurador**, com as permissões que o Controle de Acesso já tinha:
+  `acesso.cadastrar_indicador` (normativa, competência e indicador) e
+  `acesso.configurar_regra_calculo` (peso e meta). A importação em massa exige as duas.
+- Apuração e coleta **não são importadas** por este app. Elas leem
+  `apps.normativa.interface`:
+  - `regras_para_apuracao(ano, mes, cargo, tipo_unidade)` — peso vigente, meta e o texto de como
+    calcular. O peso vigente é o excepcional, quando ele existe (inclusive zero); senão, o da portaria.
+  - `indicadores_para_coleta(ano, mes, cargo, tipo_unidade)` — o que a unidade preenche, com pai e
+    filhos.
+  - `soma_pesos_de_primeiro_nivel(regras)` — conferência. O peso do subindicador não entra nessa
+    soma, porque ele só compõe a nota do pai.
+- Cada gravação chama `apps.auditoria.interface.registrar`. O rastro fica em
+  `auditoria.RegistroAuditoria` (consulta em `interface.consultar` e no Django Admin, sem edição).
+  Foi o mínimo para a normativa conseguir enviar o que cadastrou: o app de auditoria ainda não tinha
+  modelo. Quem for fazer a tela de auditoria mantém `registrar` e `consultar`.
+- HTTP (usuário autenticado; escrita só com a permissão acima):
+
+  | Método | Rota | Uso |
+  |---|---|---|
+  | POST/GET | `/api/normativa/normativas/` | versão da portaria |
+  | POST/GET | `/api/normativa/competencias/` | mês → normativa |
+  | POST/GET | `/api/normativa/indicadores/` | catálogo |
+  | PUT | `/api/normativa/indicadores/<id>/` | atualizar indicador |
+  | POST | `/api/normativa/indicadores/importar/` | CSV em massa (`arquivo` + `normativa`) |
+  | POST/GET | `/api/normativa/regras/` | peso e meta |
+  | GET | `/api/normativa/apuracao/regras/?ano=&mes=&cargo=&tipo_unidade=` | leitura da apuração |
+  | GET | `/api/normativa/coleta/indicadores/?ano=&mes=&cargo=&tipo_unidade=` | leitura da coleta |
+
+- O modelo de CSV é `apps/normativa/exemplo_indicadores.csv` (separador `;`, UTF-8). Os percentuais
+  20/20/20/40 do coordenador de US na USF repetem a leitura do resultado geral da planilha
+  anonimizada. O peso excepcional do SnB2 nesse arquivo é só para mostrar que ele substitui o da
+  portaria. A planilha inteira não foi importada: o PDF não preserva a coluna de cada unidade.
+  Confirme na planilha antes de tratar número como oficial.
+- O Diário Oficial nº 131, de 21/09/2024, não traz a portaria dos pesos desta gratificação por
+  desempenho. O que ele cita de gratificação é outra (função de supervisor do PSA). Cargos e
+  indicadores usados no modelo vêm da planilha anonimizada (CAM 1.2 / CAM 2.0, atualizada em
+  10/02/2025): coordenador de US, GG, SnA, SnB1, SnB2; unidades USF, UBT, CAPS, CECON, UCIS, MAC.

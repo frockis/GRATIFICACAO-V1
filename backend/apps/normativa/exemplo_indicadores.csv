@@ -1,0 +1,8 @@
+codigo;nome;nivel;codigo_pai;unidade_medida;forma_calculo;formula;abrangencia;cargo;tipo_unidade;peso_portaria;peso_excepcional;meta
+1;Proporção de registro de recebimento no Hórus em até 2 dias úteis;indicador;;%;proporcao;Requisições encerradas no prazo / requisições do período;Coordenador de US na USF;coordenador_us;USF;20;;100
+2;Gestão do Trabalho;indicador;;%;media_subindicadores;Média das notas dos subindicadores de gestão do trabalho;Coordenador de US na USF;coordenador_us;USF;20;;
+2;Gestão do Trabalho;indicador;;%;media_subindicadores;Média das notas dos subindicadores de gestão do trabalho;Cargo de distrito SnB2 — peso excepcional de demonstração;snb2;;20;15;
+2.2;Abonos sem justificativa legal;subindicador;2;quantidade;proporcao;Quantidade de abonos sem justificativa legal;;;;;;
+3;Satisfação do Usuário;indicador;;%;proporcao;Avaliações recebidas / avaliações esperadas;Coordenador de US na USF;coordenador_us;USF;20;;100
+4;Desempenho da Unidade;indicador;;%;media_subindicadores;Nota de desempenho da unidade de saúde;Coordenador de US na USF;coordenador_us;USF;40;;
+5;Desempenho da Vigilância em Saúde do Distrito Sanitário;indicador;;%;media_subindicadores;Nota de vigilância do distrito;Cargos de distrito — GG;gg;;100;;

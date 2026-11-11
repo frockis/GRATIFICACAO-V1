@@ -7,4 +7,5 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("apps.cadastro.urls")),
     path("api/", include("apps.auditoria.urls")),
+    path("api/normativa/", include("apps.normativa.urls")),
 ]
