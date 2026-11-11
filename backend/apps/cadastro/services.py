@@ -5,6 +5,7 @@ Toda escrita passa por aqui para (1) validar com as regras do modelo e
 """
 from dataclasses import dataclass
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.forms.models import model_to_dict
@@ -30,7 +31,7 @@ class Autor:
 
 CAMPOS_AUDITADOS = {
     Unidade: ["nome", "distrito", "tipo", "cnes", "status"],
-    Avaliado: ["nome", "email", "matricula", "perfil", "unidade", "distrito", "status"],
+    Avaliado: ["nome", "email", "matricula", "perfil", "unidade", "distrito", "status", "usuario"],
     Distrito: ["nome"],
 }
 CAMPOS_DE_VINCULO = {"perfil", "unidade", "distrito"}
@@ -50,6 +51,8 @@ def _nome_relacionado(campo: str, valor: str) -> str:
         return Distrito.objects.filter(pk=valor).values_list("nome", flat=True).first() or valor
     if campo == "perfil":
         return PerfilId(valor).label if valor in PerfilId.values else valor
+    if campo == "usuario":
+        return get_user_model().objects.filter(pk=valor).values_list("username", flat=True).first() or valor
     return valor
 
 
@@ -92,6 +95,8 @@ def _auditar(obj, autor: Autor, antes: dict | None):
     if alterados == ["status"]:
         operacao = f"{nome_classe} {'reativad' if depois['status'] == Status.ATIVO else 'inativad'}"
         operacao += "a" if nome_classe == "Unidade" else "o"
+    elif alterados == ["usuario"]:
+        operacao = "Login desvinculado" if depois["usuario"] == "—" else "Login vinculado"
     elif isinstance(obj, Avaliado) and CAMPOS_DE_VINCULO & set(alterados):
         operacao = "Vínculo alterado"
     else:
@@ -156,16 +161,20 @@ def reativar(obj, autor: Autor):
 # --------------------------------------------------------------------------- #
 
 
-def vinculos_unidade_pessoa(unidade_id: str | None = None, distrito_id: str | None = None):
+def vinculos_unidade_pessoa(unidade_id: str | None = None, distrito_id: str | None = None, escopo=None):
     """Avaliados ativos com o seu vínculo (para 'apuração e homologação').
 
     Retorna só quem entra no cálculo: gestores de unidade e coordenadores distritais.
+    `escopo` (escopo.Escopo) recorta para quem a pessoa pode ver; sem ele, vem o município
+    inteiro (uso interno dos outros componentes, como a apuração).
     """
     qs = (
         Avaliado.objects.filter(status=Status.ATIVO, perfil__in=[PerfilId.GESTOR, PerfilId.COORDENADOR])
         .select_related("unidade", "distrito")
         .order_by("id")
     )
+    if escopo is not None:
+        qs = qs.filter(pk__in=escopo.avaliados().values("pk"))
     if unidade_id:
         qs = qs.filter(unidade_id=unidade_id)
     if distrito_id:

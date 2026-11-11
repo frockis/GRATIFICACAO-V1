@@ -104,6 +104,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [perfilAtual, usuarioAtual]);
 
   // Carrega o cadastro do backend; se ele não estiver rodando, segue com o mockData.
+  // Recarrega a cada troca de perfil: o backend só devolve o escopo de quem pede
+  // (gestor: a unidade; coordenador: o distrito; SEAB/Configurador: o município).
   useEffect(() => {
     let ativo = true;
     Promise.all([api.listarDistritos(), api.listarUnidades(), api.listarUsuarios(), api.listarAuditoria()])
@@ -119,7 +121,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => {
       ativo = false;
     };
-  }, []);
+  }, [perfilAtual]);
 
   const nomePerfilAtual = PERFIS.find((p) => p.id === perfilAtual)?.nome ?? '';
 

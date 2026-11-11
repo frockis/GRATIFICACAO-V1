@@ -28,6 +28,9 @@ class UnidadeAdmin(CadastroAdmin):
 
 @admin.register(Avaliado)
 class AvaliadoAdmin(CadastroAdmin):
-    list_display = ["id", "nome", "email", "perfil", "unidade", "distrito", "status"]
+    """O campo "login" liga a pessoa ao usuário do Controle de Acesso (define o escopo dela)."""
+
+    list_display = ["id", "nome", "email", "perfil", "unidade", "distrito", "status", "usuario"]
     list_filter = ["perfil", "status", "distrito"]
     search_fields = ["nome", "email", "matricula"]
+    raw_id_fields = ["usuario"]
